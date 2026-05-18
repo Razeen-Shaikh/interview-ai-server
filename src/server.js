@@ -1,12 +1,11 @@
 import "dotenv/config";
 
-import mongoose from "mongoose";
 import app from "./app.js";
+import connectDB from "./db/connect.js";
 
 const PORT = process.env.PORT || 5000;
 
-mongoose
-  .connect(process.env.MONGODB_URI)
+connectDB()
   .then(() => {
     console.log("MongoDB Connected");
 

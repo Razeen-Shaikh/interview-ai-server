@@ -1,21 +1,24 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
+import { getAuthCookieOptions } from "../utils/cookieOptions.js";
 
-const cookieOpts = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-  path: "/",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-};
+const TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
-const clearCookieOpts = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-  path: "/",
-};
+function authErrorResponse(error) {
+  if (error.message === "JWT_SECRET is not set") {
+    return { status: 500, message: "Server misconfigured" };
+  }
+  if (
+    error.name === "MongooseError" ||
+    /MongoNetwork|buffering timed out|Server selection/i.test(
+      String(error.message),
+    )
+  ) {
+    return { status: 503, message: "Database unavailable" };
+  }
+  return { status: 500, message: "Server Error" };
+}
 
 export const registerUser = async (req, res) => {
   try {
@@ -55,7 +58,11 @@ export const registerUser = async (req, res) => {
     const token = generateToken(user);
 
     // Send cookie (path must match clearCookie on logout)
-    res.cookie("token", token, cookieOpts);
+    res.cookie(
+      "token",
+      token,
+      getAuthCookieOptions(req, { maxAge: TOKEN_MAX_AGE }),
+    );
 
     res.status(201).json({
       success: true,
@@ -67,12 +74,9 @@ export const registerUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log(error);
-
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    console.error("registerUser:", error.message);
+    const { status, message } = authErrorResponse(error);
+    res.status(status).json({ success: false, message });
   }
 };
 
@@ -113,7 +117,11 @@ export const loginUser = async (req, res) => {
     // Generate token
     const token = generateToken(user);
 
-    res.cookie("token", token, cookieOpts);
+    res.cookie(
+      "token",
+      token,
+      getAuthCookieOptions(req, { maxAge: TOKEN_MAX_AGE }),
+    );
 
     res.status(200).json({
       success: true,
@@ -125,18 +133,15 @@ export const loginUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log(error);
-
-    res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
+    console.error("loginUser:", error.message);
+    const { status, message } = authErrorResponse(error);
+    res.status(status).json({ success: false, message });
   }
 };
 
 export const logoutUser = async (req, res) => {
   try {
-    res.clearCookie("token", clearCookieOpts);
+    res.clearCookie("token", getAuthCookieOptions(req));
 
     res.status(200).json({
       success: true,

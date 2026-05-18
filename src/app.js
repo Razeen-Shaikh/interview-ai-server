@@ -1,45 +1,35 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import mongoose from "mongoose";
 
 import authRoutes from "./routes/auth.routes.js";
 import interviewRoutes from "./routes/interview.routes.js";
+import { isOriginAllowed } from "./config/cors.js";
+import connectDB from "./db/connect.js";
 
 const app = express();
 
-/** Dev-friendly allowlist; set CORS_ORIGIN to comma-separated origins in production. */
-const defaultDevOrigins = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "http://localhost:3001",
-  "http://127.0.0.1:3001",
-];
+app.set("trust proxy", 1);
 
-const envOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
-  : [];
-
-const allowedOrigins = new Set([...defaultDevOrigins, ...envOrigins]);
-
-const isProd = process.env.NODE_ENV === "production";
-
-/** In development, allow any localhost / 127.0.0.1 port (Next.js may use 3000, 3001, …). */
-const devLoopbackOrigin =
-  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("Database connection failed:", error.message);
+    res.status(503).json({
+      success: false,
+      message: "Database unavailable",
+    });
+  }
+});
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-      if (allowedOrigins.has(origin)) {
-        callback(null, true);
-        return;
-      }
-      if (!isProd && devLoopbackOrigin.test(origin)) {
-        callback(null, true);
+      if (!origin || isOriginAllowed(origin)) {
+        callback(null, origin || true);
         return;
       }
       callback(null, false);
@@ -59,6 +49,18 @@ app.get("/", (req, res) => {
   res.json({
     success: true,
     message: "Interview AI API Running",
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  const ready = mongoose.connection.readyState === 1;
+  res.json({
+    success: true,
+    db: ready ? "connected" : "disconnected",
+    env: {
+      mongo: Boolean(process.env.MONGODB_URI),
+      jwt: Boolean(process.env.JWT_SECRET),
+    },
   });
 });
 
