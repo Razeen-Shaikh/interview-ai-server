@@ -21,8 +21,8 @@ export default async function connectDB() {
   if (!cache.promise) {
     cache.promise = mongoose.connect(uri, {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 10_000,
-      socketTimeoutMS: 20_000,
+      serverSelectionTimeoutMS: 5_000,
+      socketTimeoutMS: 10_000,
     });
   }
 
