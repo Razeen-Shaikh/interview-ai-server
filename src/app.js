@@ -12,7 +12,7 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-app.use(async (req, res, next) => {
+async function requireDb(req, res, next) {
   try {
     await connectDB();
     next();
@@ -23,7 +23,7 @@ app.use(async (req, res, next) => {
       message: "Database unavailable",
     });
   }
-});
+}
 
 app.use(
   cors({
@@ -42,8 +42,8 @@ app.use(express.json());
 
 app.use(cookieParser());
 
-app.use("/api/auth", authRoutes);
-app.use("/api/interview", interviewRoutes);
+app.use("/api/auth", requireDb, authRoutes);
+app.use("/api/interview", requireDb, interviewRoutes);
 
 app.get("/", (req, res) => {
   res.json({
@@ -52,11 +52,19 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/api/health", (req, res) => {
-  const ready = mongoose.connection.readyState === 1;
+app.get("/api/health", async (req, res) => {
+  let db = "disconnected";
+  try {
+    await connectDB();
+    db = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+  } catch (error) {
+    db = "error";
+    console.error("health check:", error.message);
+  }
+
   res.json({
     success: true,
-    db: ready ? "connected" : "disconnected",
+    db,
     env: {
       mongo: Boolean(process.env.MONGODB_URI),
       jwt: Boolean(process.env.JWT_SECRET),
