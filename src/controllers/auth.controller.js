@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
 import { getAuthCookieOptions } from "../utils/cookieOptions.js";
+import { debugLog } from "../utils/debugLog.js";
 
 const TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
@@ -81,6 +82,16 @@ export const registerUser = async (req, res) => {
 };
 
 export const loginUser = async (req, res) => {
+  debugLog(
+    "auth.controller.js:login",
+    "login handler entered",
+    {
+      method: req.method,
+      origin: req.headers.origin ?? "(none)",
+      hasCookie: Boolean(req.headers.cookie),
+    },
+    "C",
+  );
   try {
     const { email, password } = req.body;
 
@@ -117,10 +128,18 @@ export const loginUser = async (req, res) => {
     // Generate token
     const token = generateToken(user);
 
-    res.cookie(
-      "token",
-      token,
-      getAuthCookieOptions(req, { maxAge: TOKEN_MAX_AGE }),
+    const cookieOpts = getAuthCookieOptions(req, { maxAge: TOKEN_MAX_AGE });
+    res.cookie("token", token, cookieOpts);
+
+    debugLog(
+      "auth.controller.js:login",
+      "login success",
+      {
+        sameSite: cookieOpts.sameSite,
+        secure: cookieOpts.secure,
+        userFound: true,
+      },
+      "E",
     );
 
     res.status(200).json({
@@ -135,6 +154,12 @@ export const loginUser = async (req, res) => {
   } catch (error) {
     console.error("loginUser:", error.message);
     const { status, message } = authErrorResponse(error);
+    debugLog(
+      "auth.controller.js:login",
+      "login error",
+      { status, errorName: error.name, errorMessage: error.message },
+      "C",
+    );
     res.status(status).json({ success: false, message });
   }
 };

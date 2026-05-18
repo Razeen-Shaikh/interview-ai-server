@@ -35,7 +35,8 @@ export function isOriginAllowed(origin) {
   if (vercelAppOrigin.test(origin)) {
     return true;
   }
-  if (!isProd && devLoopbackOrigin.test(origin)) {
+  // Allow localhost in production too (local dev against deployed API).
+  if (devLoopbackOrigin.test(origin)) {
     return true;
   }
   return false;

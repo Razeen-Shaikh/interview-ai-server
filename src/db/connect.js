@@ -9,7 +9,7 @@ if (!globalCache.mongooseCache) {
 const cache = globalCache.mongooseCache;
 
 export default async function connectDB() {
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI?.trim();
   if (!uri) {
     throw new Error("MONGODB_URI is not set");
   }
@@ -19,13 +19,24 @@ export default async function connectDB() {
   }
 
   if (!cache.promise) {
-    cache.promise = mongoose.connect(uri, {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 5_000,
-      socketTimeoutMS: 10_000,
-    });
+    cache.promise = mongoose
+      .connect(uri, {
+        bufferCommands: false,
+        serverSelectionTimeoutMS: 10_000,
+        socketTimeoutMS: 45_000,
+        maxPoolSize: 1,
+        family: 4,
+      })
+      .then((mongooseInstance) => mongooseInstance);
   }
 
-  cache.conn = await cache.promise;
+  try {
+    cache.conn = await cache.promise;
+  } catch (error) {
+    cache.promise = null;
+    cache.conn = null;
+    throw error;
+  }
+
   return cache.conn;
 }
